@@ -4,6 +4,7 @@ A real-time AI-powered parking space detection system built using YOLOv11, OpenC
 The project automatically detects vehicles in parking-lot footage and identifies which parking slots are occupied or vacant.
 It provides a simple yet effective dashboard for monitoring parking space availability — making parking management smarter and more efficient.
 
+
 🚀 Features
 
 🎯 Real-time Detection: Uses YOLOv11 for fast and accurate vehicle detection
@@ -18,20 +19,35 @@ It provides a simple yet effective dashboard for monitoring parking space availa
 
 ⚙️ CPU-Friendly: Runs efficiently on CPU; no GPU required
 
+
+
 🧠 Tech Stack
+
 Category	Technologies
+
 Language	Python 3
+
 AI / Object Detection	Ultralytics YOLOv11
+
 Image Processing	OpenCV, NumPy
+
 Framework	PyTorch
+
 Dashboard / UI	Streamlit
+
+
+
 👨‍💻 Author
 
 Neha Jaiswal
+
 🎓 Computer Science & Engineering Student • 💡 AI & ML Enthusiast
+
 📫 LinkedIn: https://www.linkedin.com/in/neha-jaiswal-aa893527a/
 
 💻 GitHub: https://github.com/NehaJaiswal15
+
+
 
 💡 Future Enhancements
 
