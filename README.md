@@ -1,11 +1,11 @@
-🅿️ AI Parking Space Detection System
+#🅿️ AI Parking Space Detection System
 
 A real-time AI-powered parking space detection system built using YOLOv11, OpenCV, and Streamlit.
 The project automatically detects vehicles in parking-lot footage and identifies which parking slots are occupied or vacant.
 It provides a simple yet effective dashboard for monitoring parking space availability — making parking management smarter and more efficient.
 
 
-🚀 Features
+##🚀 Features
 
 🎯 Real-time Detection: Uses YOLOv11 for fast and accurate vehicle detection
 
@@ -21,7 +21,7 @@ It provides a simple yet effective dashboard for monitoring parking space availa
 
 
 
-🧠 Tech Stack
+##🧠 Tech Stack
 
 Category	Technologies
 
@@ -37,7 +37,7 @@ Dashboard / UI	Streamlit
 
 
 
-👨‍💻 Author
+##👨‍💻 Author
 
 Neha Jaiswal
 
@@ -49,7 +49,7 @@ Neha Jaiswal
 
 
 
-💡 Future Enhancements
+##💡 Future Enhancements
 
 📷 Add real-time webcam integration for live monitoring
 
