@@ -1,24 +1,22 @@
 import streamlit as st
-import cv2, torch, numpy as np, pickle, tempfile, os
+import cv2, torch, numpy as np, pickle, tempfile
 from ultralytics import YOLO
 from utilis import YOLO_Detection, drawPolygons
 
 # ---------------- CONFIG ----------------
-st.set_page_config(page_title="Professional Parking Analytics Studio", page_icon="🅿️", layout="wide")
+st.set_page_config(page_title="AI Parking Analytics Studio", page_icon="🅿️", layout="wide")
 
 st.markdown("""
     <style>
     .main {background-color: #0E1117;}
     .stMetric {text-align:center;}
-    .metric-label {font-size:14px; color:#AAA;}
-    .metric-value {font-size:28px; font-weight:600;}
     h1, h2, h3 {color:#9D8CFF !important;}
     </style>
 """, unsafe_allow_html=True)
 
 # ---------------- SIDEBAR ----------------
-st.sidebar.title("⚙️ Professional Controls")
-st.sidebar.header("Processing Settings")
+st.sidebar.title("⚙️ Control Panel")
+st.sidebar.header("Settings")
 
 label_style = st.sidebar.selectbox("Label Style", ["Clean & Minimal", "Bold & Highlighted"])
 show_vehicle_ids = st.sidebar.checkbox("Show Vehicle IDs", True)
@@ -27,13 +25,13 @@ output_quality = st.sidebar.selectbox("Output Quality", ["Standard", "Profession
 
 st.sidebar.divider()
 st.sidebar.header("Status")
-st.sidebar.write("Model: YOLOv11 (CPU mode)")
+st.sidebar.write("Model: YOLOv11 (CPU Mode)")
 
 # ---------------- MODEL LOAD ----------------
 @st.cache_resource
 def load_model():
     device = torch.device('cpu')
-    model = YOLO("yolo11n.pt")  # Change to yolov8n.pt if you prefer
+    model = YOLO("yolo11n.pt") 
     model.to(device)
     return model
 
@@ -52,13 +50,13 @@ def scale_polygons(polys, ref_size, cur_size):
     return [[(int(x * sx), int(y * sy)) for (x, y) in poly] for poly in polys]
 
 # ---------------- APP HEADER ----------------
-st.title("🚗 Professional Parking Analytics Studio")
-st.markdown("Upload a parking lot video and analyze slot occupancy using **YOLOv8/YOLOv11**.")
+st.title("🚗 AI Parking Analytics Studio")
+st.markdown("Upload a parking-lot video to analyze slot occupancy using **YOLOv8 / YOLOv11** and visualize results below.")
 
-uploaded_file = st.file_uploader("📤 Upload Video for Professional Processing", type=["mp4", "mov", "avi"])
+uploaded_file = st.file_uploader("📤 Upload a Parking Lot Video", type=["mp4", "mov", "avi"])
 
 if uploaded_file:
-    # Save uploaded file temporarily
+    
     temp_file = tempfile.NamedTemporaryFile(delete=False)
     temp_file.write(uploaded_file.read())
     video_path = temp_file.name
@@ -66,11 +64,11 @@ if uploaded_file:
     st.success("✅ Video uploaded successfully. Starting processing...")
     cap = cv2.VideoCapture(video_path)
     frame_placeholder = st.empty()
+    progress_bar = st.progress(0)
 
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
     current_frame = 0
 
-    # --- Metrics placeholders
     col1, col2, col3, col4 = st.columns(4)
 
     while cap.isOpened():
@@ -89,16 +87,13 @@ if uploaded_file:
         available_count = len(posList) - occupied_count
         occupancy_percent = (occupied_count / len(posList)) * 100 if len(posList) else 0
 
-        # --- Metrics update
         col1.metric("Total Slots", len(posList))
         col2.metric("Occupied", occupied_count)
         col3.metric("Available", available_count)
         col4.metric("Occupancy (%)", f"{occupancy_percent:.1f}")
 
-        # --- Progress
-        st.progress(int((current_frame / total_frames) * 100))
+        progress_bar.progress(int((current_frame / total_frames) * 100))
 
-        # --- Optional YOLO boxes
         if show_vehicle_ids:
             for (x1, y1, x2, y2), cls in zip(boxes, classes):
                 name = names[int(cls)]
@@ -106,14 +101,14 @@ if uploaded_file:
                 cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), color, 1)
                 label = name
                 if show_confidence:
-                    label += f" {model.predict(frame)[0].boxes.conf[0]:.2f}"
+                    conf = model.predict(frame)[0].boxes.conf[0] if len(model.predict(frame)[0].boxes.conf) else 0
+                    label += f" {conf:.2f}"
                 cv2.putText(frame, label, (int(x1), int(y1)-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
-        # --- Show frame
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        frame_placeholder.image(frame_rgb, channels="RGB", use_container_width=True)
+        frame_placeholder.image(frame_rgb, channels="RGB", use_column_width=True)  # ✅ FIXED
 
     cap.release()
     st.success("✅ Processing completed successfully!")
 else:
-    st.info("📺 Upload a parking lot video to begin.")
+    st.info("📺 Upload a parking-lot video to begin analysis.")
