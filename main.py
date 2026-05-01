@@ -1,99 +1,155 @@
-import cv2, torch, numpy as np, pickle
-from ultralytics import YOLO
-from utilis import YOLO_Detection, drawPolygons, label_detection
+"""
+AI Parking Space Detection — CLI Entry Point.
+Runs real-time parking occupancy detection on a video file
+using YOLOv11 and displays results in an OpenCV window.
 
-# --- File paths ---
-ROI_PICKLE = "Space_ROIs.pkl"
-VIDEO_PATH = "input_video/parking_space.mp4"
-MODEL_PATH = "yolo11n.pt"  # ✅ you can use yolov8n.pt or yolov11n.pt (after pip upgrade)
+Usage:
+    python main.py
+    python main.py --video path/to/video.mp4 --model yolo11n.pt --conf 0.4
+    python main.py --help
+"""
+
+import argparse
+import logging
+import time
+
+import cv2
+import numpy as np
+
+from src.config import MODEL_PATH, ROI_PICKLE, VIDEO_PATH, CONFIDENCE_THRESHOLD
+from src.detector import ParkingDetector
+from src.occupancy_logger import OccupancyLogger
+from src.utils import label_detection, scale_polygons
+
+# --- Logging setup ---
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(name)-18s | %(levelname)-5s | %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 
-# --- Helper to scale polygons if video resolution differs from ROI reference ---
-def scale_polygons(polys, ref_size, cur_size):
-    ref_w, ref_h = ref_size
-    cur_h, cur_w = cur_size
-    sx, sy = cur_w / ref_w, cur_h / ref_h
-    return [[(int(x * sx), int(y * sy)) for (x, y) in poly] for poly in polys]
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="AI Parking Space Detection System — Real-time occupancy analysis.",
+    )
+    parser.add_argument(
+        "--video", type=str, default=VIDEO_PATH,
+        help=f"Path to the parking-lot video file (default: {VIDEO_PATH})",
+    )
+    parser.add_argument(
+        "--model", type=str, default=MODEL_PATH,
+        help=f"Path to the YOLO model weights (default: {MODEL_PATH})",
+    )
+    parser.add_argument(
+        "--roi", type=str, default=ROI_PICKLE,
+        help=f"Path to the ROI pickle file (default: {ROI_PICKLE})",
+    )
+    parser.add_argument(
+        "--conf", type=float, default=CONFIDENCE_THRESHOLD,
+        help=f"Detection confidence threshold (default: {CONFIDENCE_THRESHOLD})",
+    )
+    parser.add_argument(
+        "--no-csv", action="store_true",
+        help="Disable CSV occupancy logging",
+    )
+    return parser.parse_args()
 
 
-# --- Model setup (CPU) ---
-device = torch.device('cpu')
-model = YOLO(MODEL_PATH)
-model.to(device)
+def main() -> None:
+    """Run the parking detection pipeline with an OpenCV display window."""
+    args = parse_args()
 
-# --- Load polygons and reference size (compatible with new and old pickle formats) ---
-with open(ROI_PICKLE, 'rb') as f:
-    data = pickle.load(f)
-    if isinstance(data, dict):
-        posList_raw = data["polygons"]
-        ref_size = data["size"]
-    else:
-        posList_raw = data
-        ref_size = None
+    logger.info("Starting AI Parking Detection")
+    logger.info("Video: %s | Model: %s | Confidence: %.2f", args.video, args.model, args.conf)
 
-cap = cv2.VideoCapture(VIDEO_PATH)
-frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
-cur_frame = 0
+    # Initialize detector
+    detector = ParkingDetector(
+        model_path=args.model,
+        roi_path=args.roi,
+        confidence=args.conf,
+    )
 
-try:
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        cur_frame += 1
+    # Initialize CSV logger
+    csv_logger = None if args.no_csv else OccupancyLogger()
 
-        cur_h, cur_w = frame.shape[:2]
-        if ref_size is None:
-            ref_size = (cur_w, cur_h)
+    # FPS tracking
+    fps = 0.0
+    prev_time = time.time()
 
-        posList = scale_polygons(posList_raw, ref_size, (cur_h, cur_w))
+    try:
+        for frame_num, total_frames, result in detector.process_video(args.video):
 
-        # --- YOLO detection ---
-        boxes, classes, names = YOLO_Detection(model, frame, conf=0.35)
+            # --- Calculate FPS ---
+            current_time = time.time()
+            fps = 1.0 / (current_time - prev_time) if (current_time - prev_time) > 0 else 0.0
+            prev_time = current_time
 
-        # --- Get car centers for polygon occupancy ---
-        detection_points = [(int((x1 + x2) / 2), int((y1 + y2) / 2)) for (x1, y1, x2, y2) in boxes]
+            frame = result.frame
 
-        # --- Draw polygons and get status ---
-        frame, occupied_count, slot_status = drawPolygons(frame, posList, detection_points=detection_points)
-        available_count = len(posList) - occupied_count
-        occupancy_percent = (occupied_count / len(posList)) * 100 if len(posList) > 0 else 0
+            # --- Log to CSV ---
+            if csv_logger:
+                csv_logger.log(
+                    frame_num=frame_num,
+                    total_slots=result.total_slots,
+                    occupied=result.occupied,
+                    available=result.available,
+                    occupancy_pct=result.occupancy_percent,
+                )
 
-        # --- Top-right Parking Status Panel ---
-        panel_x, panel_y = frame.shape[1] - 300, 10
-        cv2.rectangle(frame, (panel_x, panel_y), (panel_x + 290, panel_y + 150), (40, 40, 40), -1)
-        cv2.putText(frame, "PARKING STATUS", (panel_x + 10, panel_y + 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        cv2.putText(frame, f"Total: {len(posList)}", (panel_x + 10, panel_y + 60),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
-        cv2.putText(frame, f"Occupied: {occupied_count}", (panel_x + 10, panel_y + 85),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-        cv2.putText(frame, f"Available: {available_count}", (panel_x + 10, panel_y + 110),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-        cv2.putText(frame, f"Occupancy: {occupancy_percent:.1f}%", (panel_x + 10, panel_y + 135),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+            # --- Top-right Parking Status Panel ---
+            panel_x, panel_y = frame.shape[1] - 300, 10
+            cv2.rectangle(frame, (panel_x, panel_y), (panel_x + 290, panel_y + 180), (40, 40, 40), -1)
+            cv2.putText(frame, "PARKING STATUS", (panel_x + 10, panel_y + 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            cv2.putText(frame, f"Total: {result.total_slots}", (panel_x + 10, panel_y + 60),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+            cv2.putText(frame, f"Occupied: {result.occupied}", (panel_x + 10, panel_y + 85),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+            cv2.putText(frame, f"Available: {result.available}", (panel_x + 10, panel_y + 110),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            cv2.putText(frame, f"Occupancy: {result.occupancy_percent:.1f}%", (panel_x + 10, panel_y + 135),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+            cv2.putText(frame, f"FPS: {fps:.1f}", (panel_x + 10, panel_y + 160),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
-        # --- Progress bar (frame number indicator) ---
-        bar_x0, bar_y0, bar_w, bar_h = panel_x + 150, panel_y + 125, 120, 15
-        cv2.rectangle(frame, (bar_x0, bar_y0), (bar_x0 + bar_w, bar_y0 + bar_h), (100, 100, 100), 1)
-        cv2.rectangle(frame, (bar_x0, bar_y0),
-                      (bar_x0 + int(bar_w * occupancy_percent / 100), bar_y0 + bar_h),
-                      (0, 0, 255) if occupancy_percent > 50 else (0, 255, 0), -1)
-        cv2.putText(frame, f"Frame: {cur_frame}/{frame_count}",
-                    (panel_x + 80, panel_y + 170), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+            # --- Progress bar ---
+            bar_x0, bar_y0, bar_w, bar_h = panel_x + 150, panel_y + 145, 120, 15
+            cv2.rectangle(frame, (bar_x0, bar_y0), (bar_x0 + bar_w, bar_y0 + bar_h), (100, 100, 100), 1)
+            fill = int(bar_w * result.occupancy_percent / 100)
+            bar_color = (0, 0, 255) if result.occupancy_percent > 50 else (0, 255, 0)
+            cv2.rectangle(frame, (bar_x0, bar_y0), (bar_x0 + fill, bar_y0 + bar_h), bar_color, -1)
+            cv2.putText(frame, f"Frame: {frame_num}/{total_frames}",
+                        (panel_x + 80, panel_y + 180), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
 
-        # --- Show detections (optional bounding boxes) ---
-        for (x1, y1, x2, y2), cls in zip(boxes, classes):
-            center = (int((x1 + x2) / 2), int((y1 + y2) / 2))
-            in_poly = any(cv2.pointPolygonTest(np.array(p, np.int32), center, False) >= 0 for p in posList)
-            name = names[int(cls)]
-            color = (0, 0, 255) if in_poly else (0, 255, 0)
-            label_detection(frame, text=str(name), tbox_color=color, left=x1, top=y1, bottom=x2, right=y2)
+            # --- Draw vehicle bounding boxes ---
+            polys = detector.roi_polygons
+            ref = detector.ref_size if detector.ref_size else (frame.shape[1], frame.shape[0])
+            scaled_polys = scale_polygons(polys, ref, frame.shape[:2])
 
-        cv2.imshow("AI Parking Detection", frame)
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            break
+            for (x1, y1, x2, y2), cls in zip(result.boxes, result.classes):
+                center = (int((x1 + x2) / 2), int((y1 + y2) / 2))
+                in_poly = any(
+                    cv2.pointPolygonTest(np.array(p, np.int32), center, False) >= 0
+                    for p in scaled_polys
+                )
+                name = result.names[int(cls)]
+                color = (0, 0, 255) if in_poly else (0, 255, 0)
+                label_detection(frame, text=str(name), tbox_color=color, x1=x1, y1=y1, x2=x2, y2=y2)
 
-finally:
-    cap.release()
-    cv2.destroyAllWindows()
+            cv2.imshow("AI Parking Detection", frame)
+            if cv2.waitKey(1) & 0xFF == ord("q"):
+                logger.info("User requested quit at frame %d", frame_num)
+                break
+
+    except KeyboardInterrupt:
+        logger.info("Interrupted by user.")
+    finally:
+        cv2.destroyAllWindows()
+        logger.info("Detection session ended.")
+
+
+if __name__ == "__main__":
+    main()

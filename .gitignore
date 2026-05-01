@@ -22,3 +22,9 @@ Thumbs.db
 *.mov
 *.avi
 *.mkv
+
+# Output logs
+output/
+
+# Personal reference (not for GitHub)
+HOW_TO_RUN.md
