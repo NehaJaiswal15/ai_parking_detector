@@ -16,7 +16,7 @@ import time
 import cv2
 import numpy as np
 
-from src.config import MODEL_PATH, ROI_PICKLE, VIDEO_PATH, CONFIDENCE_THRESHOLD
+from src.config import MODEL_PATH, ROI_PICKLE, VIDEO_PATH, CONFIDENCE_THRESHOLD, DISPLAY_MAX_WIDTH
 from src.detector import ParkingDetector
 from src.occupancy_logger import OccupancyLogger
 from src.utils import label_detection, scale_polygons
@@ -139,7 +139,14 @@ def main() -> None:
                 color = (0, 0, 255) if in_poly else (0, 255, 0)
                 label_detection(frame, text=str(name), tbox_color=color, x1=x1, y1=y1, x2=x2, y2=y2)
 
-            cv2.imshow("AI Parking Detection", frame)
+            # --- Resize for display if frame is too wide ---
+            display_frame = frame
+            h_disp, w_disp = frame.shape[:2]
+            if w_disp > DISPLAY_MAX_WIDTH:
+                scale = DISPLAY_MAX_WIDTH / w_disp
+                display_frame = cv2.resize(frame, (int(w_disp * scale), int(h_disp * scale)))
+
+            cv2.imshow("AI Parking Detection", display_frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 logger.info("User requested quit at frame %d", frame_num)
                 break

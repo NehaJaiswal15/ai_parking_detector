@@ -12,12 +12,14 @@ REF_IMAGE = "ROI_Reference.png"
 # --- YOLO Detection ---
 CONFIDENCE_THRESHOLD = 0.35
 VEHICLE_CLASSES = [2, 5, 7]  # COCO classes: 2=car, 5=bus, 7=truck
+YOLO_IMGSZ = 1280            # Inference resolution (higher = better detection on large videos)
 
 # --- Visualization ---
 OVERLAY_ALPHA = 0.4
 COLOR_OCCUPIED = (0, 0, 255)     # Red (BGR)
 COLOR_AVAILABLE = (0, 255, 0)    # Green (BGR)
 COLOR_LABEL_BG = (30, 155, 50)   # Default bounding-box label color
+DISPLAY_MAX_WIDTH = 1280         # Max width for OpenCV display window
 
 # --- Status Panel (OpenCV window) ---
 PANEL_WIDTH = 290

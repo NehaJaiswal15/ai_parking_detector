@@ -10,7 +10,7 @@ import numpy as np
 from ultralytics import YOLO
 
 from src.config import (
-    CONFIDENCE_THRESHOLD, VEHICLE_CLASSES,
+    CONFIDENCE_THRESHOLD, VEHICLE_CLASSES, YOLO_IMGSZ,
     COLOR_OCCUPIED, COLOR_AVAILABLE, OVERLAY_ALPHA, COLOR_LABEL_BG,
 )
 
@@ -59,7 +59,7 @@ def YOLO_Detection(
         - confidences: List of confidence scores for each detection.
         - class_names: Dict mapping class ID to human-readable name.
     """
-    results = model.predict(frame, conf=conf, classes=VEHICLE_CLASSES)
+    results = model.predict(frame, conf=conf, classes=VEHICLE_CLASSES, imgsz=YOLO_IMGSZ)
     boxes = results[0].boxes.xyxy.tolist()
     classes = results[0].boxes.cls.tolist()
     confs = results[0].boxes.conf.tolist()
