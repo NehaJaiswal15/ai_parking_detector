@@ -6,14 +6,19 @@ and performance metrics.
 """
 
 import logging
+import sys
 import tempfile
 import time
+from pathlib import Path
 
 import cv2
 import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
 import torch
+
+# Ensure project root is on the path so 'src' package is importable
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.config import (
     MODEL_PATH, ROI_PICKLE,

@@ -18,9 +18,14 @@ Controls:
 import argparse
 import logging
 import pickle
+import sys
+from pathlib import Path
 
 import cv2
 import numpy as np
+
+# Ensure project root is on the path so 'src' package is importable
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.config import ROI_PICKLE, REF_IMAGE
 
